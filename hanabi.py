@@ -72,6 +72,9 @@ class CardStack:
         else:
             return None
         
+    def __len__(self):
+        return len(self.cards)        
+        
     
 class Deck(CardStack):
     """A deck of Hanabi cards."""
@@ -119,29 +122,30 @@ class Piles:
     
     def append(self, card):
         """Attempt to add a card to the matching pile."""
-        can_play, target_pile = self.is_playable(card)
-                
+        can_play = self.is_playable(card)
+        
+        target_pile = self.piles[card.color]
+        card_on_top = target_pile.top()
+        
         if can_play:
-            card_on_top = target_pile.top()
             target_pile.append(card) 
-            print('Appended card {0} to pile {1}.'.format(card, card_on_top))
+            logging.debug('Appended card {0} to pile {1}.'.format(card, card_on_top))
         else:
-            card_on_top = target_pile.top()
             raise events.WrongPlayError('ERROR Tried to play a wrong card: {0} on pile {1}.'.format(card, card_on_top))
         
         if card.number == 5:
             raise events.CompletedPile('Completed {0} pile! +1 hint.'.format(card.color))
         
     def is_playable(self, card):
-        """Return whether a card can be played, and which pile is played onto."""
+        """Return whether a card can be played."""
         
         target_pile = self.piles.get(card.color)
         card_on_top = target_pile.top()
         
         if card_on_top is None or card.number == card_on_top.number + 1:
-            return True, target_pile
+            return True
         else:
-            return False, target_pile
+            return False
         
     def __str__(self):
         cards = []
@@ -185,10 +189,10 @@ class Player:
             raise events.InvalidActionError('Wrong action: card not in hand')
             
         except events.CardError:
-            raise
+            raise events.CardError('Player {0}: no more cards in hand.'.format(self.name))
     
     def print(self):
-        print('Player {0}: hand {1}'.format(self.name, self.hand))
+        logging.info('Player {0}: hand {1}'.format(self.name, self.hand))
         
     def __str__(self):
         return str(self.hand)
@@ -202,9 +206,6 @@ class Game:
             self.play_strategy = 'best'
         else:
             self.play_strategy = play_strategy
-        
-        self.init_game()
-        self.game_loop()
     
     def init_game(self):
         
@@ -218,6 +219,8 @@ class Game:
         
     def game_loop(self):
         
+        self.init_game()
+        
         # Shuffle deck and give hands
         self.deck.shuffle()
         for p in range(self.n_players):
@@ -228,31 +231,35 @@ class Game:
                 c = self.deck.pop()
                 self.players[p].hand.append(c)
 
-        print('Starting game')
+        logging.info('Starting game')
         self.print()
         
         is_last_turn = False
-        turn = 1
-        turns_left = self.n_players - 1
-        
+        turn = 1      
+        turns_left = self.n_players
         
         actions = ('play', 'hint', 'discard')
-#        actions = ('play', 'hint')
         while True:
-            print('')
-            print('* Turn {0}'.format(turn))
+            logging.info('')
+            logging.info('*** Turn {0} ***'.format(turn))
             
             for p in self.players:
                 successful = False
-#                tries = 0
-                print('')
+                logging.info('')
+                logging.info('    Player {0}'.format(p.name))
+             
+                # Print the game status
+                self.print()                
+                                    
+                tries = 0
                 while not successful:
-#                    tries = tries + 1
-#                    if tries > 5:
-#                        raise Exception('Stop')
                     try:
+                        tries = tries + 1
+                        if tries > 20:
+                            raise events.HanabiError('Too many tries!')
+                            
                         action = random.choice(actions)
-#                        print('Player {0}: trying {1}'.format(p.name, action))
+                        logging.debug('Try {0}: trying action {1}'.format(tries, action))
                         if action == 'play':
                             self.play(p)
                         elif action == 'hint':
@@ -265,66 +272,78 @@ class Game:
                         continue
                     
                     except events.WrongPlayError as e:
-                        print(e)
+                        logging.debug(e)
                         
                         if e.is_game_error:
                             self.errors = self.errors - 1
                             
                         if self.errors == 0:
-                            print('Game ended with defeat.')
-                            return
+                            score = self.piles.score()
+                            logging.info('Game ended with defeat. Score = {}'.format(score))
+                            return False, score
                         
                     except events.EmptyDeck as e:
-                        print(e)
+                        logging.debug(e)
                         successful = True           
                         
                     except events.CardError as e:
-                        print(e)
+                        logging.debug(e)
+                        continue
                       
                     except events.CompletedPile:
                         self.hints = self.hints + 1
                         successful = True
                         
-                    successful = True
+                    except Exception as e:
+                        logging.warning('Uncaught exception: {}'.format(e))
+                        raise
                     
-                # Valid action has been chosen
-                print('Player {1} chose action: "{2}".'.format(turn, p.name, action))
+                    successful = True
+                        
+                    
+                # A valid action has been chosen
+                logging.debug('Player {0} chose action: "{1}".'.format(p.name, action))
                 
                 # Draw a card
                 try:
-                    if actions in ('play', 'discard'):
+                    if action in ('play', 'discard'):
                         card = self.deck.pop()
                         p.hand.append(card)
+                        logging.debug('Player {0} picks a card: {1}'.format(p.name, card))
                         
                 except events.CardError as e:
-                    print('Last turn!')
+                    logging.info('Last turn!')
                     is_last_turn = True
                 
-                
-                
-                # Print the game status
-                self.print()
-                
-                turn = turn + 1
+                except:
+                    raise
+                    
+                if turn > 35:
+                    raise events.HanabiError('Too many turns! Loop?')
+    
+            
                 if is_last_turn:
                     turns_left = turns_left - 1
                     
                 if turns_left == 0:
-                    print('Game ended!')
+                    score = self.piles.score()
+                    logging.info('Game ended successfully! Score = {}'.format(score))
                     self.print()
-                    return self.piles.score()
-                
-        
+                    return True, score
+            
+            # Out of player loop
+            turn = turn + 1
                     
         
     def discard(self, player):
         if self.hints < 7:
             self.hints = self.hints + 1
             try:
-                player.remove_card()
-            except events.InvalidActionError as e:
-                print(e)
-                raise events.InvalidActionError('Cannot discard: {0}\'s hand is empty'.format(player.name))
+                card = player.remove_card()
+                logging.debug('Player {0} discards a {1}'.format(player.name, card))
+            except events.CardError as e:
+                logging.debug(e)
+                raise events.CardError('Cannot discard: {0}\'s hand is empty'.format(player.name))
             except:
                 raise
         else:
@@ -332,23 +351,24 @@ class Game:
             
     def play(self, player):
         
-        if not player.hand:
-            pass
+        if len(player.hand) == 0:
+            raise events.InvalidActionError('Player {0}: no more cards in hand.'.format(player.name))
 
         if self.play_strategy == 'best':
             found_card = False 
             for idx, card in enumerate(player.hand.cards):
                 
                 if self.piles.is_playable(card):
+                    logging.debug('Player {0}: found playable card {1}.'.format(player.name, card))
                     card = player.remove_card(idx)
                     found_card = True
                     break
                 
         if self.play_strategy == 'random' or not found_card:
             card = player.remove_card()
-            print('Player {0}: playing card {1} randomly (strategy: {2}).'.format(player.name, card, self.play_strategy))        
+            logging.debug('Player {0}: playing card {1} randomly (strategy: {2}).'.format(player.name, card, self.play_strategy))        
         else:
-            print('Player {0}: playing card {1} (strategy: {2}).'.format(player.name, card, self.play_strategy))        
+            logging.debug('Player {0}: playing card {1} (strategy: {2}).'.format(player.name, card, self.play_strategy))        
 
         self.piles.append(card)
         
@@ -356,23 +376,26 @@ class Game:
         if self.hints > 0:
             self.hints = self.hints - 1
         else:
-            raise InvalidActionError('Cannot hive hint: no more hints.')
+            raise events.InvalidActionError('Cannot hive hint: no more hints.')
               
     def print(self):
         for p in self.players:
             p.print()
         
-        print('Piles: {0}. Score: {1}'.format(self.piles, self.piles.score()))
-        print('{0} cards left in deck, {1} hint(s) left, {2} error(s) left.'.format(
+        logging.info('Piles: {0}. Score: {1}'.format(self.piles, self.piles.score()))
+        logging.info('{0} cards left in deck, {1} hint(s) left, {2} error(s) left.'.format(
                 len(self.deck.cards),
                 self.hints, 
                 self.errors))
+    
         
         
 def main():
 #    player = Player(1)
 #    player.remove_card()
     game = Game()
+    scores = game.game_loop()
+    return scores
     
 
 if __name__ == '__main__':
