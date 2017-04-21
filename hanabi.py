@@ -7,12 +7,16 @@ This is a temporary script file.
 import events
 
 import random
-#from random import shuffle, choice
 from termcolor import colored
 
 import logging
-#import progressbar
+import progressbar
+import csv
 
+import argparse
+
+
+# Set-up logging
 logging.getLogger('').handlers.clear()
 loglevel = logging.WARNING
 logging.basicConfig(filename = 'hanabi.log', filemode = 'w',
@@ -23,6 +27,8 @@ console = logging.StreamHandler()
 console.setLevel(logging.root.level)
 
 logging.getLogger('').addHandler(console)
+
+
 
 # Global variables
 colors = ('red', 'green', 'yellow', 'white', 'cyan')
@@ -280,7 +286,7 @@ class Game:
                         if self.errors == 0:
                             score = self.piles.score()
                             logging.info('Game ended with defeat. Score = {}'.format(score))
-                            return False, score
+                            return {'finished': False, 'score': score, 'turns': turn}
                         
                     except events.EmptyDeck as e:
                         logging.debug(e)
@@ -329,7 +335,7 @@ class Game:
                     score = self.piles.score()
                     logging.info('Game ended successfully! Score = {}'.format(score))
                     self.print()
-                    return True, score
+                    return {'finished': True, 'score': score, 'turns': turn}
             
             # Out of player loop
             turn = turn + 1
@@ -389,31 +395,29 @@ class Game:
                 self.errors))
     
         
+
+def multi_run(game, how_many):
+    results = [None] * how_many
+    with progressbar.ProgressBar(max_value = how_many) as bar:
+        for i in range(how_many):
+            logging.info('')
+            logging.info('Game {}'.format(i + 1))
+            results[i] = game.game_loop()
+            bar.update(i)
+    return results
+            
         
-def main():
+def main(how_many = 100):
 #    player = Player(1)
 #    player.remove_card()
     game = Game()
     
-    #    scores = game.game_loop()
-    
-    
-    scores = multi_run(game, 10000)
-    scores.sort()
+    scores = multi_run(game, how_many)
+#    scores.sort()
 #    scores.sort(key = lambda x: x[1])
-
     return scores
 
-def multi_run(game, how_many):
-    results = [None] * how_many
-#    with progressbar.ProgressBar(max_value = how_many) as bar:
-    for i in range(how_many):
-        logging.info('')
-        logging.info('Game {}'.format(i + 1))
-        results[i] = game.game_loop()
-#            bar.update(i)
-    return results
-    
+
 def debug_players():
     deck = Deck()
     print('The deck')
@@ -441,9 +445,25 @@ def debug_players():
     print(deck)
 
 
+def parseArguments():
+    # Create argument parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument("how_many", type = int, help = "How many games are simulated", default = 1000, nargs='?')
+    args = parser.parse_args()
+    return args
 
 if __name__ == '__main__':
-    status = main()
-    print('Score: {}'.format(status))
-#    quit
+    
+    args = parseArguments()
+    
+    scores = main(args.how_many)
+    
+    with open('scores.csv', 'w', newline='') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames = scores[0].keys())
+        writer.writeheader()
+        writer.writerows(scores)
+    
+    print('Scores:')
+    print(scores)
+    quit
     
