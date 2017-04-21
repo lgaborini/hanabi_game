@@ -10,7 +10,19 @@ import random
 #from random import shuffle, choice
 from termcolor import colored
 
+import logging
+#import progressbar
 
+logging.getLogger('').handlers.clear()
+loglevel = logging.WARNING
+logging.basicConfig(filename = 'hanabi.log', filemode = 'w',
+                    level = loglevel, 
+                    format = '[%(levelname)6s]: %(message)s')
+
+console = logging.StreamHandler()
+console.setLevel(logging.root.level)
+
+logging.getLogger('').addHandler(console)
 
 # Global variables
 colors = ('red', 'green', 'yellow', 'white', 'cyan')
