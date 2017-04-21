@@ -394,14 +394,25 @@ def main():
 #    player = Player(1)
 #    player.remove_card()
     game = Game()
-    scores = game.game_loop()
-    return scores
     
+    #    scores = game.game_loop()
+    
+    
+    scores = multi_run(game, 10000)
+    scores.sort()
+#    scores.sort(key = lambda x: x[1])
 
-if __name__ == '__main__':
-    status = main()
-    quit
-    
+    return scores
+
+def multi_run(game, how_many):
+    results = [None] * how_many
+#    with progressbar.ProgressBar(max_value = how_many) as bar:
+    for i in range(how_many):
+        logging.info('')
+        logging.info('Game {}'.format(i + 1))
+        results[i] = game.game_loop()
+#            bar.update(i)
+    return results
     
 def debug_players():
     deck = Deck()
@@ -428,3 +439,11 @@ def debug_players():
     deck.shuffle()
 
     print(deck)
+
+
+
+if __name__ == '__main__':
+    status = main()
+    print('Score: {}'.format(status))
+#    quit
+    
