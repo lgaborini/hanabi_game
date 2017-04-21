@@ -4,6 +4,7 @@ Spyder Editor
 
 This is a temporary script file.
 """
+import events
 
 import random
 #from random import shuffle, choice
@@ -15,51 +16,6 @@ from termcolor import colored
 colors = ('red', 'green', 'yellow', 'white', 'cyan')
 numbers = (1, 2, 3, 4, 5)
 quantities = (3, 2, 2, 2, 1)
-
-
-
-class HanabiError(Exception):
-    """Generic Hanabi event. Can handle invalid plays, wrong plays, common exceptions."""
-    
-    def __init__(self, msg = None, is_game_error = None):
-        self.msg = msg
-        self.is_game_error = is_game_error
-
-
-class CardError(HanabiError):
-    """A pile is emptied: e.g. no more card in hand."""
-    
-    def __init__(self, msg):
-        super().__init__(msg, is_game_error = False)
-        
-        
-class EmptyDeck(HanabiError):
-    """A deck is finished. Triggers last turn."""
-    
-    def __init__(self, msg):
-        super().__init__(msg, is_game_error = False)
-
-
-class InvalidActionError(HanabiError):
-    """An invalid Hanabi action. Does not decrement the error counter."""
-    
-    def __init__(self, msg):
-        super().__init__(msg, is_game_error = False)
-        
-        
-class WrongPlayError(HanabiError):
-    """A wrong play. Decrements the error counter, however it is a valid action."""
-    def __init__(self, msg):
-        super().__init__(msg, is_game_error = True)
-     
-        
-class CompletedPile(HanabiError):
-    """A pile has been completed."""
-    
-    def __init__(self, msg):
-        super().__init__(msg, is_game_error = False)
-    
-
 
 
     
@@ -96,7 +52,7 @@ class CardStack:
         if self.cards:
             return self.cards.pop(idx)
         else:
-            raise CardError("No more cards to pick.")
+            raise events.CardError("No more cards to pick.")
             
     def top(self):
         if (self.cards):
@@ -128,11 +84,10 @@ class Pile(CardStack):
     def __init__(self, color):
         super().__init__(cards = [])
         self.color = color
-        self.cards.append(Card(0, self.color))
         
     def append(self, card):
         if card.color != self.color:
-            raise InvalidActionError('Wrong card added!')
+            raise events.InvalidActionError('Wrong card added!')
         super().append(card)
 
 
@@ -160,10 +115,10 @@ class Piles:
             print('Appended card {0} to pile {1}.'.format(card, card_on_top))
         else:
             card_on_top = target_pile.top()
-            raise WrongPlayError('ERROR Tried to play a wrong card: {0} on pile {1}.'.format(card, card_on_top))
+            raise events.WrongPlayError('ERROR Tried to play a wrong card: {0} on pile {1}.'.format(card, card_on_top))
         
         if card.number == 5:
-            raise CompletedPile('Completed {0} pile! +1 hint.'.format(card.color))
+            raise events.CompletedPile('Completed {0} pile! +1 hint.'.format(card.color))
         
     def is_playable(self, card):
         """Return whether a card can be played, and which pile is played onto."""
@@ -215,9 +170,9 @@ class Player:
             return card
         
         except IndexError:
-            raise InvalidActionError('Wrong action: card not in hand')
+            raise events.InvalidActionError('Wrong action: card not in hand')
             
-        except CardError:
+        except events.CardError:
             raise
     
     def print(self):
@@ -293,11 +248,11 @@ class Game:
                         else:
                             self.discard(p)
                             
-                    except InvalidActionError as e:
-                        print(e)
+                    except events.InvalidActionError as e:
+                        logging.debug(e)
                         continue
                     
-                    except WrongPlayError as e:
+                    except events.WrongPlayError as e:
                         print(e)
                         
                         if e.is_game_error:
@@ -307,14 +262,14 @@ class Game:
                             print('Game ended with defeat.')
                             return
                         
-                    except EmptyDeck as e:
+                    except events.EmptyDeck as e:
                         print(e)
                         successful = True           
                         
-                    except CardError as e:
+                    except events.CardError as e:
                         print(e)
                       
-                    except CompletedPile:
+                    except events.CompletedPile:
                         self.hints = self.hints + 1
                         successful = True
                         
@@ -329,9 +284,11 @@ class Game:
                         card = self.deck.pop()
                         p.hand.append(card)
                         
-                except CardError as e:
+                except events.CardError as e:
                     print('Last turn!')
                     is_last_turn = True
+                
+                
                 
                 # Print the game status
                 self.print()
@@ -343,7 +300,7 @@ class Game:
                 if turns_left == 0:
                     print('Game ended!')
                     self.print()
-                    return
+                    return self.piles.score()
                 
         
                     
@@ -353,13 +310,13 @@ class Game:
             self.hints = self.hints + 1
             try:
                 player.remove_card()
-            except InvalidActionError as e:
+            except events.InvalidActionError as e:
                 print(e)
-                raise InvalidActionError('Cannot discard: {0}\'s hand is empty'.format(player.name))
+                raise events.InvalidActionError('Cannot discard: {0}\'s hand is empty'.format(player.name))
             except:
                 raise
         else:
-            raise InvalidActionError('Cannot discard: already full hints')
+            raise events.InvalidActionError('Cannot discard: already full hints')
             
     def play(self, player):
         
