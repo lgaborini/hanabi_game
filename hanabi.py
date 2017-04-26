@@ -18,13 +18,13 @@ import argparse
 
 # Set-up logging
 logging.getLogger('').handlers.clear()
-loglevel = logging.WARNING
+loglevel = logging.DEBUG
 logging.basicConfig(filename='hanabi.log', filemode='w',
                     level=loglevel,
                     format='[%(levelname)6s]: %(message)s')
 
 console = logging.StreamHandler()
-console.setLevel(logging.root.level)
+console.setLevel(logging.WARNING)
 
 logging.getLogger('').addHandler(console)
 
@@ -95,6 +95,12 @@ class Deck(CardStack):
 
     def print(self):
         super().print()
+
+    def pop(self):
+        try:
+            return super().pop()
+        except events.CardError:
+            raise events.EmptyDeck
 
 
 class Pile(CardStack):
@@ -192,7 +198,7 @@ class Player:
 
         except IndexError:
             # Index out of bounds
-            raise events.InvalidActionError('Wrong action: card not in hand')
+            raise events.InvalidActionError('Wrong action: card not in hand.')
 
         except events.CardError:
             # The player hand is empty
@@ -220,7 +226,7 @@ class Game:
 
         self.hints = 7
         self.errors = 3
-        self.n_players = 3
+        self.n_players = 4
         self.deck = Deck()
         self.piles = Piles()
         self.players = []
@@ -236,14 +242,24 @@ class Game:
             pl = Player(p + 1)
             self.players.append(pl)
 
-            for nc in range(5):
+            if self.n_players in (2,3):
+                cards_to_deal = 5
+            elif self.n_players in (4,5):
+                cards_to_deal = 4
+            else:
+                e = events.HanabiError("Wrong number of players!")
+                logging.error(e)
+                raise e
+            
+            for nc in range(cards_to_deal):
                 c = self.deck.pop()
                 self.players[p].hand.append(c)
 
         logging.info('Starting game')
         self.print()
 
-        turn = 1                        # 1 turn = all players play
+        # Turn mechanism: 1 turn = everybody has played once
+        turn = 1
         is_last_turn = False
         # Number of actions in the last turn. At 0 the game ends
         turns_left = self.n_players
@@ -268,6 +284,7 @@ class Game:
                     try:
                         tries = tries + 1
                         if tries > 20:
+                            logging.debug('Too many tries!')
                             raise events.HanabiError('Too many tries!')
 
                         action = random.choice(actions)
@@ -279,6 +296,8 @@ class Game:
                             self.hint()
                         else:
                             self.discard(p)
+                            
+                        successful = True
 
                     except events.InvalidActionError as e:
                         # The action cannot be performed: choose another one.
@@ -301,35 +320,26 @@ class Game:
                                 'turns': turn
                             }
 
-                    except events.CardError as e:
-                        logging.debug(e)
-                        continue
-
                     except events.CompletedPile:
                         self.hints = self.hints + 1
                         successful = True
 
-                    except Exception as e:
-                        logging.warning('Uncaught exception: {}'.format(e))
-                        raise
-
-                    successful = True
-
-                # A valid action has been chosen
+                # A valid action has been performed
                 logging.debug(
-                    'Player {0} chose action: "{1}".'.format(p.name, action))
+                    'Player {0} performed action: "{1}".'.format(p.name, action))
 
                 # Draw a card
-                try:
-                    if action in ('play', 'discard'):
+                if action in ('play', 'discard'):                
+                    try:    
                         card = self.deck.pop()
                         p.hand.append(card)
                         logging.debug(
                             'Player {0} picks a card: {1}'.format(p.name, card))
 
-                except events.CardError as e:
-                    logging.info('Last turn!')
-                    is_last_turn = True
+                    except events.EmptyDeck as e:
+                        logging.debug(e)
+                        logging.info('Last turn!')
+                        is_last_turn = True
 
                 if is_last_turn:
                     turns_left = turns_left - 1
@@ -339,7 +349,11 @@ class Game:
                     logging.info(
                         'Game ended successfully! Score = {}'.format(score))
                     self.print()
-                    return {'finished': True, 'score': score, 'turns': turn}
+                    return {
+                        'finished': True, 
+                        'score': score, 
+                        'turns': turn
+                    }
 
                 if turn > 35:
                     raise events.HanabiError('Too many turns! Loop?')
@@ -417,13 +431,16 @@ class Game:
 
 
 def multi_run(game, how_many):
+    
     results = [None] * how_many
+              
     with progressbar.ProgressBar(max_value=how_many) as bar:
         for i in range(how_many):
             logging.info('')
             logging.info('Game {}'.format(i + 1))
             results[i] = game.game_loop()
             bar.update(i)
+            
     return results
 
 
@@ -436,39 +453,13 @@ def main(how_many=100):
     return scores
 
 
-def debug_players():
-    deck = Deck()
-    print('The deck')
-    print(deck)
-
-    # Making players
-    p1 = Player(1)
-    for i in range(5):
-        c1 = deck.pop()
-        p1.hand.append(c1)
-
-    p2 = Player(2)
-    for i in range(5):
-        c2 = deck.pop()
-        p2.hand.append(c2)
-
-    print("Player 1:", p1)
-    print("Player 2:", p2)
-
-    print('The deck')
-    print(deck)
-
-    deck.shuffle()
-
-    print(deck)
-
 
 def parseArguments():
     # Create argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "how_many", type=int,
-        help="How many games are simulated", default=1000, nargs='?')
+        "how_many", metavar='N', type=int, 
+        help="How many games are simulated", default=100, nargs='?')
     args = parser.parse_args()
     return args
 
