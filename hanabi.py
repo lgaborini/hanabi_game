@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Spyder Editor
-
-This is a temporary script file.
+Hanabi main game classes
 """
 import events
-
 import random
+
+# Logging and output: colored
 from termcolor import colored
 
 import logging
@@ -233,7 +232,8 @@ class Game:
 
     def game_loop(self):
         """Play one entire game and return results."""
-
+ 
+        # Setup a new game
         self.init_game()
 
         # Shuffle deck and give hands
@@ -431,9 +431,11 @@ class Game:
 
 
 def multi_run(game, how_many):
+    """Play a game a number of times"""
     
+    # Preallocate results
     results = [None] * how_many
-              
+    
     with progressbar.ProgressBar(max_value=how_many) as bar:
         for i in range(how_many):
             logging.info('')
@@ -445,11 +447,12 @@ def multi_run(game, how_many):
 
 
 def main(how_many=100):
+  
+    # Setup a new game
     game = Game()
-
+    
+    # Replay the game
     scores = multi_run(game, how_many)
-#    scores.sort()
-#    scores.sort(key = lambda x: x[1])
     return scores
 
 
@@ -469,7 +472,7 @@ if __name__ == '__main__':
     args = parseArguments()
 
     scores = main(args.how_many)
-
+    # Write statistics to disk
     with open('scores.csv', 'w', newline='') as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=scores[0].keys())
         writer.writeheader()
