@@ -212,6 +212,7 @@ class Player:
 
 
 class Game:
+    """Manager for a single game."""
 
     def __init__(self, play_strategy=None):
 
@@ -232,7 +233,7 @@ class Game:
 
     def game_loop(self):
         """Play one entire game and return results."""
- 
+
         # Setup a new game
         self.init_game()
 
@@ -242,15 +243,15 @@ class Game:
             pl = Player(p + 1)
             self.players.append(pl)
 
-            if self.n_players in (2,3):
+            if self.n_players in (2, 3):
                 cards_to_deal = 5
-            elif self.n_players in (4,5):
+            elif self.n_players in (4, 5):
                 cards_to_deal = 4
             else:
                 e = events.HanabiError("Wrong number of players!")
                 logging.error(e)
                 raise e
-            
+
             for nc in range(cards_to_deal):
                 c = self.deck.pop()
                 self.players[p].hand.append(c)
@@ -296,7 +297,7 @@ class Game:
                             self.hint()
                         else:
                             self.discard(p)
-                            
+
                         successful = True
 
                     except events.InvalidActionError as e:
@@ -329,8 +330,8 @@ class Game:
                     'Player {0} performed action: "{1}".'.format(p.name, action))
 
                 # Draw a card
-                if action in ('play', 'discard'):                
-                    try:    
+                if action in ('play', 'discard'):
+                    try:
                         card = self.deck.pop()
                         p.hand.append(card)
                         logging.debug(
@@ -350,8 +351,8 @@ class Game:
                         'Game ended successfully! Score = {}'.format(score))
                     self.print()
                     return {
-                        'finished': True, 
-                        'score': score, 
+                        'finished': True,
+                        'score': score,
                         'turns': turn
                     }
 
@@ -432,36 +433,35 @@ class Game:
 
 def multi_run(game, how_many):
     """Play a game a number of times"""
-    
+
     # Preallocate results
     results = [None] * how_many
-    
+
     with progressbar.ProgressBar(max_value=how_many) as bar:
         for i in range(how_many):
             logging.info('')
             logging.info('Game {}'.format(i + 1))
             results[i] = game.game_loop()
             bar.update(i)
-            
+
     return results
 
 
 def main(how_many=100):
-  
+
     # Setup a new game
     game = Game()
-    
+
     # Replay the game
     scores = multi_run(game, how_many)
     return scores
 
 
-
 def parseArguments():
-    # Create argument parser
+    """Command line argument parser."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "how_many", metavar='N', type=int, 
+        "how_many", metavar='N', type=int,
         help="How many games are simulated", default=100, nargs='?')
     args = parser.parse_args()
     return args
