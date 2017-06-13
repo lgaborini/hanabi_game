@@ -5,10 +5,10 @@ Hanabi main game classes
 import events
 import random
 
-# Logging and output: colored
+# Logging and output: color using ANSI escape codes
 from termcolor import colored
-
 import logging
+
 import progressbar
 import csv
 
@@ -16,15 +16,16 @@ import argparse
 
 
 # Set-up logging
+#
+# Log all moves (INFO) to file "hanabi.log"
+# Log >= warnings to console
 logging.getLogger('').handlers.clear()
 loglevel = logging.DEBUG
 logging.basicConfig(filename='hanabi.log', filemode='w',
                     level=loglevel,
                     format='[%(levelname)6s]: %(message)s')
-
 console = logging.StreamHandler()
 console.setLevel(logging.WARNING)
-
 logging.getLogger('').addHandler(console)
 
 
@@ -259,7 +260,8 @@ class Game:
         logging.info('Starting game')
         self.print()
 
-        # Turn mechanism: 1 turn = everybody has played once
+        # Turn mechanism:
+        # 1 turn = everybody has played once
         turn = 1
         is_last_turn = False
         # Number of actions in the last turn. At 0 the game ends
@@ -326,7 +328,7 @@ class Game:
                         successful = True
 
                 # A valid action has been performed
-                logging.debug(
+                logging.info(
                     'Player {0} performed action: "{1}".'.format(p.name, action))
 
                 # Draw a card
@@ -403,11 +405,13 @@ class Game:
         if self.play_strategy == 'random' or not found_card:
             # Play a random card
             card = player.remove_card()
-            logging.debug('Player {0}: playing card {1} randomly (strategy: {2}).'.format(
-                player.name, card, self.play_strategy))
+            logging.info('Player {0}: playing card {1} randomly (strategy: {2}).'.format(
+                player.name, card, 
+                self.play_strategy))
         else:
-            logging.debug('Player {0}: playing card {1} (strategy: {2}).'.format(
-                player.name, card, self.play_strategy))
+            logging.info('Player {0}: playing card {1} (strategy: {2}).'.format(
+                player.name, card, 
+                self.play_strategy))
 
         self.piles.append(card)
 
